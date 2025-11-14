@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Pruebas unitarias
+  gateway-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: gateway-tests
+    environment:
+      - SECURITY_URL=http://mock-security:8080
+      - PROFILE_URL=http://mock-profile:8087
+      - EVENT_BUS_URL=http://mock-eventbus:8085
+      - PORT=8088
+      - JWT_SECRET=test-secret-key
+    command: go test ./... -v
+    volumes:
+      - .:/app
+      - go-modules:/go/pkg/mod
+
+  # Pruebas con cobertura
+  gateway-coverage:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: gateway-coverage
+    environment:
+      - SECURITY_URL=http://mock-security:8080
+      - PROFILE_URL=http://mock-profile:8087
+      - EVENT_BUS_URL=http://mock-eventbus:8085
+      - PORT=8088
+      - JWT_SECRET=test-secret-key
+    command: sh -c "go test ./... -coverprofile=coverage.out -covermode=atomic && go tool cover -html=coverage.out -o coverage.html"
+    volumes:
+      - .:/app
+      - ./coverage:/app/coverage
+      - go-modules:/go/pkg/mod
+
+volumes:
+  go-modules:

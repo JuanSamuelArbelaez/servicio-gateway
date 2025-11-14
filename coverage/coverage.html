@@ -1,0 +1,792 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>client: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">servicio-gateway/client/client.go (62.5%)</option>
+				
+				<option value="file1">servicio-gateway/config/config.go (100.0%)</option>
+				
+				<option value="file2">servicio-gateway/cors.go (0.0%)</option>
+				
+				<option value="file3">servicio-gateway/handlers/handlers.go (0.0%)</option>
+				
+				<option value="file4">servicio-gateway/handlers/handlers_profile.go (0.0%)</option>
+				
+				<option value="file5">servicio-gateway/handlers/handlers_security.go (0.0%)</option>
+				
+				<option value="file6">servicio-gateway/handlers/health_handlers.go (100.0%)</option>
+				
+				<option value="file7">servicio-gateway/jwt_middleware.go (45.0%)</option>
+				
+				<option value="file8">servicio-gateway/main.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package client
+
+import (
+        "bytes"
+        "encoding/json"
+        "io"
+        "io/ioutil"
+        "log"
+        "net/http"
+        "time"
+)
+
+// HttpClient exportado para que main pueda configurarlo
+var HttpClient = &amp;http.Client{
+        Timeout: 15 * time.Second,
+}
+
+// ProxyRequest envía la petición al servicio objetivo y devuelve status, body, headers
+func ProxyRequest(method, url string, body io.Reader, headers http.Header) (int, []byte, http.Header, error) <span class="cov10" title="2">{
+        req, err := http.NewRequest(method, url, body)
+        if err != nil </span><span class="cov0" title="0">{
+                return 0, nil, nil, err
+        }</span>
+
+        // Copiar headers (saltear Host)
+        <span class="cov10" title="2">for k, vv := range headers </span><span class="cov0" title="0">{
+                if k == "Host" </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov0" title="0">for _, v := range vv </span><span class="cov0" title="0">{
+                        req.Header.Add(k, v)
+                }</span>
+        }
+
+        <span class="cov10" title="2">resp, err := HttpClient.Do(req)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("[client] error calling %s: %v\n", url, err)
+                return 0, nil, nil, err
+        }</span>
+        <span class="cov10" title="2">defer resp.Body.Close()
+
+        respBody, err := ioutil.ReadAll(resp.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                return resp.StatusCode, nil, resp.Header, err
+        }</span>
+
+        <span class="cov10" title="2">return resp.StatusCode, respBody, resp.Header, nil</span>
+}
+
+// PostEvent publica un evento en el EventBus usando directamente la URL.
+// eventBusURL: la URL base del event-bus, por ejemplo "http://notification-orchestrator:8085" o "http://notification-orchestrator:8085/api"
+// event: cualquier estructura serializable a JSON
+func PostEvent(eventBusURL string, event interface{}) error <span class="cov10" title="2">{
+        if eventBusURL == "" </span><span class="cov1" title="1">{
+                log.Printf("[client] EventBus not configured, skipping event: %+v\n", event)
+                return nil
+        }</span>
+
+        // Normalizar URL y construir endpoint /events
+        <span class="cov1" title="1">target := eventBusURL
+        // remove trailing slash
+        if len(target) &gt; 0 &amp;&amp; target[len(target)-1] == '/' </span><span class="cov0" title="0">{
+                target = target[:len(target)-1]
+        }</span>
+        <span class="cov1" title="1">target = target + "/events"
+
+        body, err := json.Marshal(event)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        <span class="cov1" title="1">req, err := http.NewRequest("POST", target, bytes.NewReader(body))
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov1" title="1">req.Header.Set("Content-Type", "application/json")
+
+        resp, err := HttpClient.Do(req)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("[client] error posting event to %s: %v\n", target, err)
+                return err
+        }</span>
+        <span class="cov1" title="1">defer resp.Body.Close()
+
+        if resp.StatusCode &gt;= 300 </span><span class="cov0" title="0">{
+                b, _ := ioutil.ReadAll(resp.Body)
+                log.Printf("[client] event-bus returned status %d: %s\n", resp.StatusCode, string(b))
+        }</span>
+
+        <span class="cov1" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package config
+
+import (
+        "log"
+        "os"
+)
+
+// Config expuesto para que handlers lo usen (campos exportados)
+type Config struct {
+        SecurityURL string
+        ProfileURL  string
+        EventBusURL string
+        Port        string
+}
+
+// LoadConfigFromEnv carga variables de entorno y devuelve Config
+func LoadConfigFromEnv() Config <span class="cov10" title="2">{
+        cfg := Config{
+                SecurityURL: os.Getenv("SECURITY_URL"),
+                ProfileURL:  os.Getenv("PROFILE_URL"),
+                EventBusURL: os.Getenv("EVENT_BUS_URL"),
+                Port:        os.Getenv("PORT"),
+        }
+
+        if cfg.Port == "" </span><span class="cov1" title="1">{
+                cfg.Port = "8088"
+        }</span>
+
+        // Logging útil para debugging
+        <span class="cov10" title="2">if cfg.SecurityURL == "" </span><span class="cov1" title="1">{
+                log.Println("[WARN] SECURITY_URL no configurada")
+        }</span>
+        <span class="cov10" title="2">if cfg.ProfileURL == "" </span><span class="cov1" title="1">{
+                log.Println("[WARN] PROFILE_URL no configurada")
+        }</span>
+        <span class="cov10" title="2">if cfg.EventBusURL == "" </span><span class="cov1" title="1">{
+                log.Println("[WARN] EVENT_BUS_URL no configurada (eventos deshabilitados)")
+        }</span>
+
+        <span class="cov10" title="2">return cfg</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package main
+
+import "net/http"
+
+func CORS(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                w.Header().Set("Access-Control-Allow-Origin", "*")
+                w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+                w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+                w.Header().Set("Access-Control-Expose-Headers", "*")
+
+                if r.Method == http.MethodOptions </span><span class="cov0" title="0">{
+                        w.WriteHeader(http.StatusNoContent)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">next.ServeHTTP(w, r)</span>
+        })
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package handlers
+
+import (
+        "bytes"
+        "encoding/json"
+        "io/ioutil"
+        "net/http"
+        "strings"
+
+        "github.com/gorilla/mux"
+
+        "servicio-gateway/client"
+        "servicio-gateway/config"
+)
+
+// MAKE PROXY FOR SECURITY SERVICE
+func MakeProxyToSecurity(method, path string) http.HandlerFunc <span class="cov0" title="0">{
+        return func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                cfg := config.LoadConfigFromEnv()
+
+                // Build dynamic URL
+                target := strings.TrimRight(cfg.SecurityURL, "/") + path
+
+                // Replace path vars: {id}
+                for k, v := range mux.Vars(r) </span><span class="cov0" title="0">{
+                        target = strings.Replace(target, "{"+k+"}", v, 1)
+                }</span>
+
+                <span class="cov0" title="0">status, body, headers, err := client.ProxyRequest(method, target, r.Body, r.Header)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadGateway)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">CopyHeaders(w.Header(), headers)
+                w.WriteHeader(status)
+                w.Write(body)</span>
+        }
+}
+
+// DELETE USER → SEND EVENT user.deleted
+func HandleDeleteUser(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        cfg := config.LoadConfigFromEnv()
+        id := mux.Vars(r)["id"]
+
+        target := strings.TrimRight(cfg.SecurityURL, "/") + "/api/v1/users/" + id
+
+        status, body, headers, err := client.ProxyRequest("DELETE", target, nil, r.Header)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, err.Error(), http.StatusBadGateway)
+                return
+        }</span>
+
+        // If deleted successfully → publish event (pass URL)
+        <span class="cov0" title="0">if status &gt;= 200 &amp;&amp; status &lt; 300 </span><span class="cov0" title="0">{
+                event := map[string]interface{}{
+                        "type": "user.deleted",
+                        "payload": map[string]interface{}{
+                                "userId": id,
+                        },
+                }
+                _ = client.PostEvent(cfg.EventBusURL, event)
+        }</span>
+
+        <span class="cov0" title="0">CopyHeaders(w.Header(), headers)
+        w.WriteHeader(status)
+        w.Write(body)</span>
+}
+
+// GET USER FULL → MERGE SECURITY + PROFILE
+func HandleGetUserFull(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        cfg := config.LoadConfigFromEnv()
+        id := mux.Vars(r)["id"]
+
+        // SECURITY USER
+        secURL := strings.TrimRight(cfg.SecurityURL, "/") + "/api/v1/users/" + id
+        statusS, bodyS, _, errS := client.ProxyRequest("GET", secURL, nil, r.Header)
+        if errS != nil </span><span class="cov0" title="0">{
+                http.Error(w, errS.Error(), http.StatusBadGateway)
+                return
+        }</span>
+
+        // PROFILE USER
+        <span class="cov0" title="0">profURL := strings.TrimRight(cfg.ProfileURL, "/") + "/api/v1/profiles/" + id
+        statusP, bodyP, _, errP := client.ProxyRequest("GET", profURL, nil, r.Header)
+        if errP != nil </span><span class="cov0" title="0">{
+                http.Error(w, errP.Error(), http.StatusBadGateway)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if statusS == http.StatusNotFound || statusP == http.StatusNotFound </span><span class="cov0" title="0">{
+                w.WriteHeader(http.StatusNotFound)
+                if statusS == http.StatusNotFound </span><span class="cov0" title="0">{
+                        w.Write(bodyS)
+                }</span> else<span class="cov0" title="0"> {
+                        w.Write(bodyP)
+                }</span>
+                <span class="cov0" title="0">return</span>
+        }
+
+        <span class="cov0" title="0">var mS, mP map[string]interface{}
+        json.Unmarshal(bodyS, &amp;mS)
+        json.Unmarshal(bodyP, &amp;mP)
+
+        for k, v := range mP </span><span class="cov0" title="0">{
+                if _, ok := mS[k]; !ok </span><span class="cov0" title="0">{
+                        mS[k] = v
+                }</span>
+        }
+
+        <span class="cov0" title="0">out, _ := json.Marshal(mS)
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(200)
+        w.Write(out)</span>
+}
+
+// UPDATE USER FULL → SPLIT DATA INTO SECURITY + PROFILE
+func HandleUpdateUserFull(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        cfg := config.LoadConfigFromEnv()
+        id := mux.Vars(r)["id"]
+
+        bodyBytes, err := ioutil.ReadAll(r.Body)
+        if err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "invalid body", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">var payload map[string]interface{}
+        if err := json.Unmarshal(bodyBytes, &amp;payload); err != nil </span><span class="cov0" title="0">{
+                http.Error(w, "invalid json", http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov0" title="0">securityKeys := map[string]bool{
+                "email": true, "username": true, "password": true,
+        }
+        profileKeys := map[string]bool{
+                "firstName": true, "lastName": true, "bio": true,
+                "avatar": true, "address": true, "phone": true,
+        }
+
+        secPart := map[string]interface{}{}
+        profPart := map[string]interface{}{}
+
+        for k, v := range payload </span><span class="cov0" title="0">{
+                if securityKeys[k] </span><span class="cov0" title="0">{
+                        secPart[k] = v
+                }</span> else<span class="cov0" title="0"> if profileKeys[k] </span><span class="cov0" title="0">{
+                        profPart[k] = v
+                }</span> else<span class="cov0" title="0"> {
+                        secPart[k] = v
+                        profPart[k] = v
+                }</span>
+        }
+
+        // SECURITY UPDATE
+        <span class="cov0" title="0">secURL := strings.TrimRight(cfg.SecurityURL, "/") + "/api/v1/users/" + id
+        secBody := jsonMarshal(secPart)
+        statusS, bodyS, _, errS := client.ProxyRequest("PUT", secURL, bytes.NewReader(secBody), r.Header)
+        if errS != nil </span><span class="cov0" title="0">{
+                http.Error(w, errS.Error(), http.StatusBadGateway)
+                return
+        }</span>
+
+        // PROFILE UPDATE
+        <span class="cov0" title="0">profURL := strings.TrimRight(cfg.ProfileURL, "/") + "/api/v1/profiles/" + id
+        profBody := jsonMarshal(profPart)
+        statusP, bodyP, _, errP := client.ProxyRequest("PUT", profURL, bytes.NewReader(profBody), r.Header)
+        if errP != nil </span><span class="cov0" title="0">{
+                http.Error(w, errP.Error(), http.StatusBadGateway)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if statusS &gt;= 200 &amp;&amp; statusS &lt; 300 &amp;&amp; statusP &gt;= 200 &amp;&amp; statusP &lt; 300 </span><span class="cov0" title="0">{
+                var mS, mP map[string]interface{}
+                json.Unmarshal(bodyS, &amp;mS)
+                json.Unmarshal(bodyP, &amp;mP)
+                for k, v := range mP </span><span class="cov0" title="0">{
+                        if _, ok := mS[k]; !ok </span><span class="cov0" title="0">{
+                                mS[k] = v
+                        }</span>
+                }
+                <span class="cov0" title="0">out := jsonMarshal(mS)
+                w.Header().Set("Content-Type", "application/json")
+                w.WriteHeader(200)
+                w.Write(out)
+                return</span>
+        }
+
+        <span class="cov0" title="0">if statusS &gt;= 400 </span><span class="cov0" title="0">{
+                w.WriteHeader(statusS)
+                w.Write(bodyS)
+                return
+        }</span>
+        <span class="cov0" title="0">w.WriteHeader(statusP)
+        w.Write(bodyP)</span>
+}
+
+// UTILS
+func CopyHeaders(dst, src http.Header) <span class="cov0" title="0">{
+        for k, v := range src </span><span class="cov0" title="0">{
+                for _, h := range v </span><span class="cov0" title="0">{
+                        dst.Add(k, h)
+                }</span>
+        }
+}
+
+func jsonMarshal(v interface{}) []byte <span class="cov0" title="0">{
+        b, _ := json.Marshal(v)
+        return b
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package handlers
+
+import (
+        "net/http"
+
+        "github.com/gorilla/mux"
+        "servicio-gateway/client"
+        "servicio-gateway/config"
+)
+
+func RegisterProfileRoutes(r *mux.Router) <span class="cov0" title="0">{
+        r.HandleFunc("/profiles/{id}", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                id := mux.Vars(r)["id"]
+
+                cfg := config.LoadConfigFromEnv()
+                target := cfg.ProfileURL + "/api/v1/profiles/" + id
+
+                status, body, headers, err := client.ProxyRequest("GET", target, nil, r.Header)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadGateway)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">CopyHeaders(w.Header(), headers)
+                w.WriteHeader(status)
+                w.Write(body)</span>
+        }).Methods("GET")
+
+        <span class="cov0" title="0">r.HandleFunc("/profiles/{id}", func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                id := mux.Vars(r)["id"]
+
+                cfg := config.LoadConfigFromEnv()
+                target := cfg.ProfileURL + "/api/v1/profiles/" + id
+
+                status, body, headers, err := client.ProxyRequest("PUT", target, r.Body, r.Header)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusBadGateway)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">CopyHeaders(w.Header(), headers)
+                w.WriteHeader(status)
+                w.Write(body)</span>
+        }).Methods("PUT")
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package handlers
+
+import (
+        "github.com/gorilla/mux"
+)
+
+func RegisterUserServiceRoutes(r *mux.Router) <span class="cov0" title="0">{
+
+        r.HandleFunc("/auth/login",
+                MakeProxyToSecurity("POST", "/api/v1/auth/login"),
+        ).Methods("POST")
+
+        r.HandleFunc("/auth/otp",
+                MakeProxyToSecurity("POST", "/api/v1/auth/otp"),
+        ).Methods("POST")
+
+        r.HandleFunc("/users",
+                MakeProxyToSecurity("POST", "/api/v1/users"),
+        ).Methods("POST")
+
+        r.HandleFunc("/users",
+                MakeProxyToSecurity("GET", "/api/v1/users"),
+        ).Methods("GET")
+
+        r.HandleFunc("/users/{id}",
+                MakeProxyToSecurity("GET", "/api/v1/users/{id}"),
+        ).Methods("GET")
+
+        r.HandleFunc("/users/{id}",
+                MakeProxyToSecurity("PUT", "/api/v1/users/{id}"),
+        ).Methods("PUT")
+
+        r.HandleFunc("/users/{id}", HandleDeleteUser).Methods("DELETE")
+
+        r.HandleFunc("/users/{id}/password",
+                MakeProxyToSecurity("PATCH", "/api/v1/users/{id}/password"),
+        ).Methods("PATCH")
+
+        r.HandleFunc("/users/{id}/account_status",
+                MakeProxyToSecurity("PATCH", "/api/v1/users/{id}/account_status"),
+        ).Methods("PATCH")
+}</span>
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package handlers
+
+import (
+        "encoding/json"
+        "net/http"
+        "time"
+)
+
+var startTime = time.Now()
+
+const VERSION = "1.0.0"
+
+func Health(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        uptime := time.Since(startTime)
+
+        resp := map[string]interface{}{
+                "status":        "UP",
+                "version":       VERSION,
+                "uptime":        uptime.String(),
+                "uptimeSeconds": int64(uptime.Seconds()),
+        }
+
+        json.NewEncoder(w).Encode(resp)
+}</span>
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package main
+
+import (
+        "encoding/json"
+        "errors"
+        "log"
+        "net/http"
+        "os"
+        "strings"
+
+        "context"
+        "github.com/golang-jwt/jwt/v5"
+)
+
+// Clave secreta cargada por ENV
+var jwtSecret []byte
+
+func init() <span class="cov1" title="1">{
+        secret := os.Getenv("JWT_SECRET")
+        if secret == "" </span><span class="cov0" title="0">{
+                log.Println("[WARN] JWT_SECRET no está definido, usando valor por defecto de desarrollo")
+                secret = "default-dev-secret"
+        }</span>
+        <span class="cov1" title="1">jwtSecret = []byte(secret)</span>
+}
+
+// ---------------------------------------------------------
+// Extraer token desde header Authorization
+// ---------------------------------------------------------
+func extractToken(r *http.Request) (string, error) <span class="cov10" title="3">{
+        auth := r.Header.Get("Authorization")
+        if auth == "" </span><span class="cov1" title="1">{
+                return "", errors.New("missing Authorization header")
+        }</span>
+
+        <span class="cov6" title="2">parts := strings.Split(auth, " ")
+        if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" </span><span class="cov1" title="1">{
+                return "", errors.New("invalid Authorization format (use Bearer &lt;token&gt;)")
+        }</span>
+
+        <span class="cov1" title="1">return parts[1], nil</span>
+}
+
+// ---------------------------------------------------------
+// Validar token y devolver claims
+// ---------------------------------------------------------
+func validateJWT(tokenString string) (jwt.MapClaims, error) <span class="cov6" title="2">{
+
+        token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) </span><span class="cov1" title="1">{
+                // Validar método de firma
+                if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok </span><span class="cov0" title="0">{
+                        return nil, errors.New("invalid signing method")
+                }</span>
+                <span class="cov1" title="1">return jwtSecret, nil</span>
+        })
+
+        <span class="cov6" title="2">if err != nil </span><span class="cov1" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">claims, ok := token.Claims.(jwt.MapClaims)
+        if !ok || !token.Valid </span><span class="cov0" title="0">{
+                return nil, errors.New("invalid token claims")
+        }</span>
+
+        <span class="cov1" title="1">return claims, nil</span>
+}
+
+// ---------------------------------------------------------
+// Middleware: validar JWT y meter claims en el contexto
+// ---------------------------------------------------------
+func JWTMiddleware(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+
+                tokenString, err := extractToken(r)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, err.Error(), http.StatusUnauthorized)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">claims, err := validateJWT(tokenString)
+                if err != nil </span><span class="cov0" title="0">{
+                        http.Error(w, "invalid token: "+err.Error(), http.StatusUnauthorized)
+                        return
+                }</span>
+
+                // Insertar claims en el contexto
+                <span class="cov0" title="0">ctx := context.WithValue(r.Context(), "tokenData", claims)
+
+                next.ServeHTTP(w, r.WithContext(ctx))</span>
+        })
+}
+
+// ---------------------------------------------------------
+// Helper para obtener los claims en cualquier handler
+// ---------------------------------------------------------
+func GetTokenData(r *http.Request) map[string]interface{} <span class="cov0" title="0">{
+        claims := r.Context().Value("tokenData")
+        if claims == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">return claims.(jwt.MapClaims)</span>
+}
+
+// ---------------------------------------------------------
+// Utilidad por si necesitas responder JSON
+// ---------------------------------------------------------
+func writeJSON(w http.ResponseWriter, status int, data interface{}) <span class="cov0" title="0">{
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(status)
+        json.NewEncoder(w).Encode(data)
+}</span>
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package main
+
+import (
+        "fmt"
+        "log"
+        "net/http"
+        "time"
+
+        "github.com/gorilla/mux"
+
+        "servicio-gateway/client"
+        "servicio-gateway/config"
+        "servicio-gateway/handlers"
+)
+
+func main() <span class="cov0" title="0">{
+        cfg := config.LoadConfigFromEnv()
+
+        // Configurar cliente http global
+        client.HttpClient = &amp;http.Client{Timeout: 10 * time.Second}
+
+        r := mux.NewRouter()
+
+        // CORS middleware (func CORS defined in root cors.go)
+        r.Use(CORS)
+
+        // Register public routes (auth, user CRUD proxies)
+        handlers.RegisterUserServiceRoutes(r)
+
+        // Protected subrouter (jwt)
+        api := r.PathPrefix("/").Subrouter()
+        api.Use(JWTMiddleware)
+
+        // Profile routes (protected)
+        handlers.RegisterProfileRoutes(api)
+
+        // Composite endpoints (protected)
+        api.HandleFunc("/users/{id}", handlers.HandleGetUserFull).Methods("GET")
+        api.HandleFunc("/users/{id}", handlers.HandleUpdateUserFull).Methods("PUT")
+        api.HandleFunc("/users/{id}", handlers.HandleDeleteUser).Methods("DELETE")
+
+        // Health endpoints (public)
+        r.HandleFunc("/health", handlers.Health).Methods("GET")
+        r.HandleFunc("/ready", handlers.Health).Methods("GET")
+        r.HandleFunc("/live", handlers.Health).Methods("GET")
+
+        addr := fmt.Sprintf(":%s", cfg.Port)
+        log.Printf("Gateway escuchando en %s", addr)
+
+        srv := &amp;http.Server{
+                Handler:      r,
+                Addr:         addr,
+                ReadTimeout:  15 * time.Second,
+                WriteTimeout: 15 * time.Second,
+                IdleTimeout:  60 * time.Second,
+        }
+
+        if err := srv.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                log.Fatalf("failed to start server: %v", err)
+        }</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
