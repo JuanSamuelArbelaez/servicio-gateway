@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,6 +10,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// -------------------------------------------
+// PROXY BÁSICO
+// -------------------------------------------
 func makeProxyToSecurity(method, path string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := loadConfigFromEnv()
@@ -26,20 +28,22 @@ func makeProxyToSecurity(method, path string) http.HandlerFunc {
 	}
 }
 
+// -------------------------------------------
+// DELETE USER (+ evento user.deleted)
+// -------------------------------------------
 func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	cfg := loadConfigFromEnv()
 	vars := mux.Vars(r)
 	id := vars["id"]
 	target := cfg.SecurityURL + "/users/" + id
 
-	// Reenviar la eliminación al servicio de seguridad
 	status, body, headers, err := proxyRequest("DELETE", target, nil, r.Header)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
-	// Si la eliminación fue exitosa (2xx), publicar evento user.deleted
+	// Emitir evento SOLO si security eliminó correctamente
 	if status >= 200 && status < 300 {
 		event := map[string]interface{}{
 			"type": "user.deleted",
@@ -47,8 +51,8 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 				"userId": id,
 			},
 		}
+
 		if err := postEvent(cfg, event); err != nil {
-			// No fallar la operación principal; sólo loguear
 			log.Printf("falló publicar evento de eliminación: %v", err)
 		}
 	}
@@ -58,6 +62,9 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+// -------------------------------------------
+// GET USER — UNIFICAR SECURITY + PROFILE
+// -------------------------------------------
 func handleGetUserFull(w http.ResponseWriter, r *http.Request) {
 	cfg := loadConfigFromEnv()
 	vars := mux.Vars(r)
@@ -79,10 +86,9 @@ func handleGetUserFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Si uno de los dos devolvió no encontrado, propagar
+	// Si uno devuelve 404 → devolver 404
 	if statusS == http.StatusNotFound || statusP == http.StatusNotFound {
 		w.WriteHeader(http.StatusNotFound)
-		// intentar devolver el body del servicio que indicó 404
 		if statusS == http.StatusNotFound {
 			w.Write(bodyS)
 		} else {
@@ -91,41 +97,47 @@ func handleGetUserFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Unir ambos JSON en uno solo; si hay conflictos, prevalece security
+	// Unir JSON
 	var mS map[string]interface{}
 	var mP map[string]interface{}
 	json.Unmarshal(bodyS, &mS)
 	json.Unmarshal(bodyP, &mP)
+
 	for k, v := range mP {
 		if _, ok := mS[k]; !ok {
 			mS[k] = v
 		}
 	}
+
 	out, _ := json.Marshal(mS)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write(out)
 }
 
+// -------------------------------------------
+// PUT USER — DIVIDIR PAYLOAD + UNIFICAR RESPUESTA
+// -------------------------------------------
 func handleUpdateUserFull(w http.ResponseWriter, r *http.Request) {
 	cfg := loadConfigFromEnv()
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	// Leer body completo
+	// Leer el body
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 
-	// Dividir el JSON en dos partes basadas en claves conocidas
+	// Parsear JSON
 	var payload map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &payload); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 
+	// Claves de cada microservicio
 	securityKeys := map[string]bool{"email": true, "username": true, "password": true}
 	profileKeys := map[string]bool{"firstName": true, "lastName": true, "bio": true, "avatar": true, "address": true, "phone": true}
 
@@ -133,18 +145,19 @@ func handleUpdateUserFull(w http.ResponseWriter, r *http.Request) {
 	profPart := make(map[string]interface{})
 
 	for k, v := range payload {
-		if securityKeys[k] {
+		switch {
+		case securityKeys[k]:
 			secPart[k] = v
-		} else if profileKeys[k] {
+		case profileKeys[k]:
 			profPart[k] = v
-		} else {
-			// Si la clave no está categorizada, enviarla a ambos por seguridad
+		default:
+			// Si la clave no está categorizada, enviarla a ambos
 			secPart[k] = v
 			profPart[k] = v
 		}
 	}
 
-	// Enviar a security
+	// ---- PUT a SECURITY ----
 	secURL := cfg.SecurityURL + "/users/" + id
 	secBody, _ := json.Marshal(secPart)
 	statusS, bodyS, _, errS := proxyRequest("PUT", secURL, bytes.NewReader(secBody), r.Header)
@@ -153,7 +166,7 @@ func handleUpdateUserFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enviar a profile
+	// ---- PUT a PROFILE ----
 	profURL := cfg.ProfileURL + "/profiles/" + id
 	profBody, _ := json.Marshal(profPart)
 	statusP, bodyP, _, errP := proxyRequest("PUT", profURL, bytes.NewReader(profBody), r.Header)
@@ -162,17 +175,19 @@ func handleUpdateUserFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Unir respuestas (si ambos OK, 200; si alguno falla, propagar)
-	if statusS >= 200 && statusS < 300 && statusP >= 200 && statusP < 300 {
+	// Si ambos ok → unir respuesta
+	if statusS < 300 && statusP < 300 {
 		var mS map[string]interface{}
 		var mP map[string]interface{}
 		json.Unmarshal(bodyS, &mS)
 		json.Unmarshal(bodyP, &mP)
+
 		for k, v := range mP {
 			if _, ok := mS[k]; !ok {
 				mS[k] = v
 			}
 		}
+
 		out, _ := json.Marshal(mS)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -180,16 +195,20 @@ func handleUpdateUserFull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Si hubo error en alguno, devolver el primero con error >=400
+	// Si uno falla, devolver el error del primero
 	if statusS >= 400 {
 		w.WriteHeader(statusS)
 		w.Write(bodyS)
 		return
 	}
+
 	w.WriteHeader(statusP)
 	w.Write(bodyP)
 }
 
+// -------------------------------------------
+// UTILIDAD PARA COPIAR HEADERS
+// -------------------------------------------
 func copyHeaders(dst, src http.Header) {
 	for k, vv := range src {
 		for _, v := range vv {
