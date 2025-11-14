@@ -8,7 +8,7 @@ COPY go.mod go.sum ./
 # 2. Descargar dependencias
 RUN go mod download
 
-# 3. Copiar TODO el proyecto
+# 3. Copiar todo el proyecto
 COPY . .
 
 # 4. Compilar
@@ -21,7 +21,9 @@ WORKDIR /app
 COPY --from=builder /src/gateway .
 COPY static ./static
 
+# Puerto por defecto dentro del contenedor
 ENV PORT=8088
+
 EXPOSE 8088
 
 CMD ["./gateway"]

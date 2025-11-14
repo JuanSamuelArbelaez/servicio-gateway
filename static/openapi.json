@@ -8,36 +8,184 @@
   "servers": [
     { "url": "http://localhost:8080", "description": "servicio-gateway" }
   ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token JWT generado por el servicio de seguridad"
+      }
+    },
+    "schemas": {
+      "Credentials": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" },
+          "name": { "type": "string" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "expires_in": { "type": "integer", "format": "int32" }
+        }
+      },
+      "SecurityUser": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "bio": { "type": "string" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "profile": { "$ref": "#/components/schemas/Profile" }
+        }
+      },
+      "UserUpdate": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" },
+          "profile": { "$ref": "#/components/schemas/Profile" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "code": { "type": "integer" }
+        }
+      }
+    }
+  },
   "paths": {
     "/auth/login": {
       "post": {
         "summary": "Login (proxy a security)",
-        "responses": { "200": { "description": "Token o respuesta del servicio de seguridad" } }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Credentials" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token desde el servicio de seguridad",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciales inválidas",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
       }
     },
     "/auth/register": {
       "post": {
         "summary": "Registrar (proxy a security)",
-        "responses": { "201": { "description": "Usuario creado (desde security)" } }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario creado (desde security)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SecurityUser" }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
       }
     },
     "/users/{id}": {
       "get": {
         "summary": "Obtener usuario completo (security + profile)",
-        "parameters": [{ "name": "id", "in": "path", "required": true }],
-        "responses": { "200": { "description": "Usuario compuesto" }, "404": { "description": "No encontrado" } }
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario compuesto",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } }
+          },
+          "401": { "description": "No autorizado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "No encontrado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
       },
       "put": {
         "summary": "Actualizar usuario (divide en security/profile)",
-        "parameters": [{ "name": "id", "in": "path", "required": true }],
-        "responses": { "200": { "description": "Usuario actualizado y unificado" } }
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UserUpdate" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Usuario actualizado y unificado",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } }
+          },
+          "400": { "description": "Solicitud inválida", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "No autorizado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
       },
       "delete": {
         "summary": "Eliminar usuario (proxy a security y publica evento)",
-        "parameters": [{ "name": "id", "in": "path", "required": true }],
-        "responses": { "204": { "description": "Eliminado" }, "404": { "description": "No encontrado" } }
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Eliminado" },
+          "401": { "description": "No autorizado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "No encontrado", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
       }
     }
   }
 }
-
