@@ -1,0 +1,43 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Servicio Gateway API",
+    "version": "1.0.0",
+    "description": "API Gateway que reenvía/autentica y compone datos entre security y profile services"
+  },
+  "servers": [
+    { "url": "http://localhost:8080", "description": "servicio-gateway" }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "Login (proxy a security)",
+        "responses": { "200": { "description": "Token o respuesta del servicio de seguridad" } }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Registrar (proxy a security)",
+        "responses": { "201": { "description": "Usuario creado (desde security)" } }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "summary": "Obtener usuario completo (security + profile)",
+        "parameters": [{ "name": "id", "in": "path", "required": true }],
+        "responses": { "200": { "description": "Usuario compuesto" }, "404": { "description": "No encontrado" } }
+      },
+      "put": {
+        "summary": "Actualizar usuario (divide en security/profile)",
+        "parameters": [{ "name": "id", "in": "path", "required": true }],
+        "responses": { "200": { "description": "Usuario actualizado y unificado" } }
+      },
+      "delete": {
+        "summary": "Eliminar usuario (proxy a security y publica evento)",
+        "parameters": [{ "name": "id", "in": "path", "required": true }],
+        "responses": { "204": { "description": "Eliminado" }, "404": { "description": "No encontrado" } }
+      }
+    }
+  }
+}
+
